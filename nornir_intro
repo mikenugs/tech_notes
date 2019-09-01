@@ -1,0 +1,248 @@
+Nornir is an automation framework like Python and Salt.
+
+Using Nornir helps with the following two things
+1.) Systematic approach to inventory and data
+2.) Concurrency
+
+With Nornir you will be using all Python programming. You can leverage existing Python libriries by using Nornir. 
+
+A framework in regards to Ansible, Salt, Nornir, django or Ruby. With software or a library you typically import it in your code and call upon it. With framework you have an inversion of control where your framework calls the code and executes it. Instead of your code importing and calling upon a library. 
+
+A framework is useful as apposed to just writing Python or Ruby code because they give you a more structured pattern to your code in terms of inventory. It has module integration that makes it simpler to write code. It has Concurrency integrated in it instead of having to create it in your code. It also provides a systemized automation for your organization. 
+
+Ansible Pros
+ - East to get started
+ - Use of SSH as transport
+ - Large community of Network Engineers use it
+ - Large organizations such as RedHat/IBM behind it
+ - Uses two programming languages YAML and Jinja2
+
+ Nornir Pros
+ - All Python, Single purpose language
+ - Easier troubleshooting/debugging
+ - Use of Python Tool Chain(linters, debuggers, code testing)
+ - Good performance
+ - Tighter integration with NAPALM and Netmiko
+
+ GPL general purpose language such as Python DSL domain specific language such as Ansible
+
+ Ansible Cons
+ - Complex logic in Ansible can be painful
+ - Complex nested data strucures in Ansible are painful
+ - Troubleshooting can be unnecessarily dificult
+ - Easy things are easy, but somewhat difficult tasks get very hard quickly
+
+ Nornir minusus
+ - You need to know Python
+ - Relatively new project with small amount of contributers
+ - Smaller community
+
+ !Nornir Inventory
+ Represents Hosts, Groups and Variables
+ Uses a "simple" inventory plugin but can also support Ansible, Netbox and NSOT plugins. NSOT supports DSAM and IPAM inventory. Nornir will then create an internal inventory object from the data that is fed to it from one of these plugins. 
+
+ !/hosts.yaml
+ ---
+localhost: 
+  hostname: localhost
+
+Using the python debugger ipython you can drill down into nornir
+
+from nornir import InitNornir
+
+norn = InitNornir()
+
+norn.inventory
+dir(norn.inventory) <-- will show more information on whats available for the object
+
+norn.inventory.hosts <-- returns host object
+
+type(norn.inventory.hosts)
+norn.inventory.hosts['hostname'] <-- will return the host object
+norn.inventory.hosts['hostname'].hostname <-- to drill down further into the object
+
+dir(norn.inventory.hosts['hostname']) <-- will drill down and show the attributes of this object
+
+Hosts is a container that returns dictionary of host objects
+Groups is a container that holds individual group objects
+
+We keep three different files for our Nornir Core Inventory Objects defaults.yaml, groups.yaml, hosts.yaml. There are five main attributes for these Objects
+1.) hostname
+2.) password
+3.) platform
+4.) port
+5.) username
+
+It also has two other containers data, connection_options. Data is a free form container that you can put whatever paramters you want. connection_options has a way you can store additional inventory information. Nornir will first look for an object in hosts then it will check group if it does not find it and finally defaults if it is not in group.
+
+!defaults.yaml
+
+---
+username: pyclass
+password: password
+data:
+  key3: value3
+
+!groups.yaml
+
+---
+cisco:
+  platform: ios
+  data:
+    key2: value2
+arista:
+  platform: eos
+juniper:
+  platform: junos
+
+!hosts.yaml
+
+---
+cisco3:
+  hostname: cisco3.lasthop.io
+  username: pyclass
+  password: password
+  groups:
+    - cisco
+  data:
+    key1: value1
+
+cisco4:
+  hostname: cisco4.lasthop.io
+  username: pyclass
+  password: password
+  groups:
+    - cisco
+
+arista1:
+  hostname: arista1.lasthop.io
+  username: pyclass
+  password: password
+  groups:
+    - arista
+
+srx2:
+  hostname: srx2.lasthop.io
+  username: pyclass
+  password: password
+  groups:
+    - juniper
+
+ !!! From ipython 
+
+ from nornir import InitNornir
+
+ norn = InitNornir() <-- This automatically processes the inventory files hosts, groups and defaults. 
+
+norn.inventory
+norn.inventory.hosts <-- will show the hosts from the host file
+
+norn.inventory.groups <-- will show groups from file
+
+norn.inventory.defaults <-- this shows defaults object
+
+dir(norn.inventory.hosts['arista1']) <-- You can see the attributes for this object
+
+
+ !Nornir Config
+ Settings for logging, exception handling, concurrency. Is configured in config.yaml
+
+ !Nornir Core/Execution
+ Filter Inventory Hosts/groups and handles logging. Spawns threads to executes tasks.
+
+ !Nornir tasks
+ are functions executes a particular nornir .run() function. These tasks run in threads specified by "num_workers"
+
+ !Nornir results
+Result per host/task in 'Results' object they are also aggregated in 'AggregatedResults' 
+
+Nornir plugins
+
+a.) Inventory
+ - Simple
+ - Ansible
+ - Netbox
+ - NSOT
+
+b.) Connections "provide nornir with way to connect to device"
+  - Paramiko
+  - Netmiko
+  - Napalm
+
+c.) Functions 
+
+ - print_results
+ - print_title
+
+d.) Tasks "these cover a veriety of actions"
+ - API's
+ - Commands
+ - Data
+ - Networking
+ - Text
+ - Version Control
+
+
+To create a simple first Nornir run
+
+1.) Create a hosts.yaml file nano hosts.yaml
+
+---
+localhost:
+  hostname: localhost
+
+2.) Import nornir object and write function
+
+from nornir import InitNornir
+
+nr = InitNornir()
+
+type(nr) <-- to confirm its nornir object
+
+nr.inventory.hosts <-- shows the hosts
+
+def my_first_task(task):
+    print('Hey look a task')
+
+3.) Run the code
+
+help(nr.run) <-- to see how to run a task
+
+nr.run(task=my_first_task)
+
+
+!Another example script
+
+!example.py
+
+import random
+import time
+from nornir import InitNornir
+
+
+def my_task(task):
+    time.sleep(random.random()) <-- time.sleep pauses script random.random picks a number between 0 and 1
+    print(task.host)
+
+
+def main():
+    nr = InitNornir(core={"num_workers": 1}) <-- defaults to 20
+    nr.run(task=my_task)
+
+
+if __name__ == "__main__":
+    main()
+
+!hosts.yaml
+
+---
+localhost:
+  hostname: localhost
+localhost1:
+  hostname: localhost1
+localhost2:
+  hostname: localhost2
+localhost3:
+  hostname: localhost3
+
+

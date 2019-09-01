@@ -1,0 +1,347 @@
+Setting Configurations
+
+Can be done via PYTHON CODE, ENVIRONMENTAL VARIABLES, CONFIGURATION FILES
+
+Config File
+
+!config.yaml
+---
+core:
+   num_workers: 20
+
+Environmental Variables
+
+export NORNIR_CORE_NUM_WORKERS=20
+
+Python Code
+
+!script.py
+nr = InitNornir{core={'num_workers':'20'}}
+
+!config.yaml
+
+---
+inventory:
+  plugin: nornir.plugins.inventory.simple.SimpleInventory
+  options:
+    host_file: inventory.yaml <-- specify the host file
+
+
+!base_example_cfg_file.py
+
+import ipdb
+from nornir import InitNornir
+
+
+def main():
+    nr = InitNornir(config_file="config.yaml") <-- here we specify the config file
+    print(nr)
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+!base_example_cfg_file.py <-- in this example we pass in our config options via dictionary instead of specifying a YAML file to load them from. 
+
+import ipdb
+from nornir import InitNornir
+
+
+def main():
+    nr = InitNornir(
+        inventory={
+            "plugin": "nornir.plugins.inventory.simple.SimpleInventory",
+            "options": {"host_file": "inventory.yaml"},
+        }
+    )
+    print(nr)
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+!From the Python shell you can check the following
+!look at the nornir object and the avialble paramters
+
+dr(nr) 
+
+!check the hosts
+nr.inventory.hosts
+
+!You can also specify these parameters via Environmental variables
+
+export NORNIR_INVENTORY_PLUGIN="nornir.plugins.inventory.simple.SimpleInventory"
+export NORNIR_INVENTORY_OPTIONS='{"host_file": "inventory.yaml"}'
+
+Nornir typically spons threads on multiple hosts at the same time and these results can come back at different times. Nornir will provide three different result types
+
+MultiResult = All hosts returned back in a dictionary type format. They key would be the host and the value will be a list with the results. The result objects will be contained in that. 
+
+!hosts.yaml
+
+---
+localhost:
+  hostname: localhost
+localhost1:
+  hostname: localhost1
+localhost2:
+  hostname: localhost2
+localhost3:
+  hostname: localhost3
+
+!results.py
+
+import ipdb
+from nornir import InitNornir
+
+
+def example_task(task):
+    return f"This is a nornir task executed against {task.host}"
+
+
+def main():
+    nr = InitNornir()
+    aggresult = nr.run(task=example_task)
+    mulresult = aggresult["localhost2"]
+    result = mulresult[0]
+    print(result)
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+$ python results_example.py
+--Return--
+None
+> /home/carl/results/results_example.py(14)main()
+     13     result = mulresult[0]
+---> 14     ipdb.set_trace()
+     15
+
+ipdb> dir()
+['__return__', 'aggresult', 'mulresult', 'nr', 'result'] <-- Here we see that the result objects we created in the script are avialable
+ipdb> type(aggresult)
+<class 'nornir.core.task.AggregatedResult'>
+ipdb> dir(aggresult)
+['__class__', '__contains__', '__delattr__', '__delitem__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getitem__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__iter__', '__le__', '__len__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__setitem__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', 'clear', 'copy', 'failed', 'failed_hosts', 'fromkeys', 'get', 'items', 'keys', 'name', 'pop', 'popitem', 'raise_on_error', 'setdefault', 'update', 'values']
+ipdb> aggresult.items()
+dict_items([('localhost', MultiResult: [Result: "example_task"]), ('localhost1', MultiResult: [Result: "example_task"]), ('localhost2', MultiResult: [Result: "example_task"]), ('localhost3', MultiResult: [Result: "example_task"])])
+ipdb> mulresult
+MultiResult: [Result: "example_task"]
+ipdb> type(mulresult)
+<class 'nornir.core.task.MultiResult'>
+ipdb> dir(mulresult)
+['__add__', '__class__', '__contains__', '__delattr__', '__delitem__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattr__', '__getattribute__', '__getitem__', '__gt__', '__hash__', '__iadd__', '__imul__', '__init__', '__init_subclass__', '__iter__', '__le__', '__len__', '__lt__', '__module__', '__mul__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__reversed__', '__rmul__', '__setattr__', '__setitem__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', 'append', 'changed', 'clear', 'copy', 'count', 'extend', 'failed', 'index', 'insert', 'name', 'pop', 'raise_on_error', 'remove', 'reverse', 'sort']
+ipdb> type(result)
+<class 'nornir.core.task.Result'>
+ipdb> dir(result)
+['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', 'changed', 'diff', 'exception', 'failed', 'host', 'name', 'result', 'severity_level', 'stderr', 'stdout']
+ipdb> result.host
+Host: localhost2
+ipdb> result.result
+'This is a nornir task executed against localhost2'
+ipdb> result.failed
+False
+ipdb>
+
+!NETMIKO PLUGIN INTEGRATION
+
+!nornir.yaml
+
+---
+core:
+  num_workers: 10
+logging:
+  file: ""
+
+!groups.yaml
+
+---
+cisco:
+  platform: cisco_ios <-- will follow netmiko platform convention
+  username: pyclass
+  password: bogus
+
+!hosts.yaml
+
+---
+cisco3:
+  hostname: cisco3.lasthop.io
+  groups:
+    - cisco
+
+cisco4:
+  hostname: cisco4.lasthop.io
+  groups:
+    - cisco
+
+!netmiko_show_ip.py
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import netmiko_send_command
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=netmiko_send_command, command_string="show ip int brief")
+
+print()
+for k, v in results.items():  <-- we loop over result to print show command
+    print("-" * 50)
+    print(k) <-- prints hostname
+    print(v[0].result) <-- prints command
+    print("-" * 50)
+print()
+
+!netmiko_show_ip_2.py
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import netmiko_send_command
+from nornir.plugins.functions.text import print_result <-- here we import print results to print
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=netmiko_send_command, command_string="show ip int brief")
+
+print_result(results)
+
+!GOING INTO ENABLE MODE
+
+!groups.yaml
+
+---
+cisco:
+  platform: cisco_ios
+  username: test9
+  password: bogus
+  connection_options:
+    netmiko:
+      extras:
+        secret: bogus <-- add enable password here
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import netmiko_send_command
+from nornir.plugins.functions.text import print_result
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=netmiko_send_command, command_string="show run", enable=True) <-- here we specify enable = True to go into enable mode
+
+print_result(results)
+
+!NETMIKO SAVE CONFIG
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import netmiko_save_config
+from nornir.plugins.functions.text import print_result
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=netmiko_save_config) <-- here we run the save_config plugin that we imported
+
+print_result(results)
+
+!NORNIR INTEGRATION TO NAPALM
+
+!hosts.yaml <-- same as previous examples
+
+---
+cisco3:
+  hostname: cisco3.lasthop.io
+  groups:
+    - cisco
+
+cisco4:
+  hostname: cisco4.lasthop.io
+  groups:
+    - cisco
+
+!groups.yaml <-- in groups we specify that platform as ios which is the format that napalm uses as apposed to cisco_ios like netmiko
+
+---
+cisco:
+  platform: ios
+  username: pyclass
+  password: bogus
+
+!nornir.yaml <-- this is standard as well
+
+---
+core:
+  num_workers: 10
+logging:
+  file: ""
+
+!napalm_facts.py
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import napalm_get
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=napalm_get, getters=["facts"]) <-- the getters are located at https://napalm.readthedocs.io/en/latest/support/index.html#getters-support-matrix and you just remove the get_ 
+
+print()
+for k, v in results.items():
+    print("-" * 50)
+    print(k)
+    print(v[0].result)
+    print("-" * 50)
+print()
+
+!HERE IS AN EXAMPLE WHERE WE GET TWO SETS OF FACTS BACK. THIS WILL GIVE YOU A KEY FOR EACH OF THE COMMANDS THAT ARE RUN
+
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import napalm_get
+from pprint import pprint
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=napalm_get, getters=["facts", "arp_table"])
+
+print()
+for k, v in results.items():
+    print("-" * 50)
+    print(k)
+    pprint(v[0].result)
+    print("-" * 50)
+print()
+
+!GOING INTO ENABLE MODE WITH NAPALM
+
+!groups.yaml
+
+---
+cisco:
+  platform: ios
+  username: test9
+  password: bogus
+  connection_options:
+    napalm:
+      extras:
+        optional_args:
+          secret: bogus <-- you must specify the secret password in groups.yaml
+
+!Here our Python program requests the config which requires privildge mode
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import napalm_get
+from pprint import pprint
+
+nr = InitNornir(config_file="nornir.yaml")
+results = nr.run(task=napalm_get, getters=["config"])
+
+print()
+for k, v in results.items():
+    print("-" * 50)
+    print(k)
+    pprint(v[0].result)
+    print("-" * 50)
+print()
+
+!NORNIR ERROR EXCEPTION HANDLING
+
+!config.yaml <-- By setting the below config when recieving an error Nornir will provide an easy to read error message but continue on executing the script on other hosts. 
+
+---
+core:
+  raise_on_error: True
+
+

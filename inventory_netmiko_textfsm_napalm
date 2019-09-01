@@ -1,0 +1,431 @@
+The below attributes are the five course nornir inventory attributes and can be set at the Host, Group or Default level.
+
+hostname
+username
+password
+platform
+port
+
+ There is also a data and connection_options that can be set at those levels as well. 
+
+ The precedence is = Host -> Group and then Defaults
+
+ !Here we have an example using SimpleInventory and setting the Nornir config, defaujlts, groups and hosts file. 
+
+!config.yaml
+
+---
+inventory:
+    plugin: nornir.plugins.inventory.simple.SimpleInventory
+    options:
+        host_file: "hosts.yaml"
+        group_file: "groups.yaml"
+        defaults_file: "defaults.yaml"
+
+logging:
+    file: ""
+
+!defaults.yaml
+
+---
+password: forgotmypassword
+data:
+  somevar: slowcar
+  somevar1: snowy
+  somevar2: python
+
+!groups.yaml
+
+---
+ios:
+  password: cisco123
+  data:
+    somevar: neato
+    somevar1: cool
+
+eos:
+  password: password
+  data:
+    somevar: racecar
+    somevar1: turbo
+
+sea:
+  password: 12345678
+  data:
+    somevar: rainy
+    somevar1: cloudy
+
+!hosts.yaml
+
+---
+cisco3:
+  hostname: cisco3
+  password: strongpass
+  groups:
+    - ios
+    - sea
+
+arista1:
+  hostname: arista1
+  groups:
+    - sea
+    - eos
+
+arista2:
+  hostname: arista2
+  data:
+    somevar: taco
+    somevar1: salsa
+  groups:
+    - eos
+
+ !Here we have a simple program that prints out the Nornir hosts and Groups
+
+from nornir import InitNornir
+
+
+def main():
+    nr = InitNornir(config_file="config.yaml")
+    print(nr.inventory.hosts)
+    print(nr.inventory.groups)
+    import ipdb
+
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+ !Here we go through printing out values from these files. 
+
+
+$ python inv_pref.py
+{'cisco3': Host: cisco3, 'arista1': Host: arista1, 'arista2': Host: arista2}
+{'ios': Group: ios, 'eos': Group: eos, 'sea': Group: sea}
+--Return--
+None
+> /home/carl/nornir_inventory_pref/inv_pref.py(9)main()
+      8     print(nr.inventory.groups)
+----> 9     import ipdb; ipdb.set_trace()
+     10
+
+ipdb> nr.inventory.hosts['arista1']
+Host: arista1
+ipdb> nr.inventory.hosts['arista1'].password
+'12345678'
+ipdb> nr.inventory.hosts['arista1'].data <-- here we dont get back data because we did not specify data at the host level in hosts.yaml
+{}
+ipdb> nr.inventory.hosts['arista2'].data
+{'somevar': 'taco', 'somevar1': 'salsa'}
+ipdb> nr.inventory.hosts['arista1'].items() <-- now we can see items that have been specified in data in other files such as groups.yaml and defaults.yaml. When you specify items you recurse the whole inventory structure and not just hosts.yaml
+dict_items([('somevar', 'rainy'), ('somevar1', 'cloudy'), ('somevar2', 'python')])
+ipdb> dir(nr.inventory.hosts['arista1'])
+['__bool__', '__class__', '__delattr__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getitem__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__iter__', '__le__', '__len__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__setitem__', '__sizeof__', '__slots__', '__str__', '__subclasshook__', '_get_connection_options_recursively', '_has_parent_group_by_name', '_has_parent_group_by_object', '_resolve_data', 'close_connection', 'close_connections', 'connection_options', 'connections', 'data', 'defaults', 'dict', 'get', 'get_connection', 'get_connection_parameters', 'get_connection_state', 'groups', 'has_parent_group', 'hostname', 'items', 'keys', 'name', 'open_connection', 'password', 'platform', 'port', 'username', 'values']
+ipdb> nr.inventory.hosts['arista1']._resolve_data() <-- this recurses through the whole inventory and not just hosts.yaml
+{'somevar': 'rainy', 'somevar1': 'cloudy', 'somevar2': 'python'}
+ipdb>
+
+!!! INVENTORY FILTERING !!!
+
+!config.yaml
+
+inventory:
+  plugin: nornir.plugins.inventory.simple.SimpleInventory
+  options:
+    host_file: "hosts.yaml"
+    group_file: "groups.yaml"
+    defaults_file: "defaults.yaml"
+
+!defaults.yaml
+
+---
+username: pyclass
+password: bogus
+
+!groups.yaml
+
+---
+sea: {}
+
+ios:
+  connection_options:
+    netmiko:
+      platform: cisco_ios
+
+nxos: {}
+
+eos:
+  platform: arista_eos
+
+!hosts.yaml
+
+---
+cisco3:
+    hostname: cisco3.lasthop.io
+    groups:
+      - ios
+
+cisco4:
+    hostname: cisco4.lasthop.io
+    platform: cisco_ios
+    groups:
+      - ios
+
+nxos1:
+    hostname: nxos1.lasthop.io
+    data:
+        role: somerole
+    groups:
+      - nxos
+      - sea
+
+nxos2:
+    hostname: nxos2.lasthop.io
+    groups:
+      - nxos
+
+arista3:
+    hostname: arista3.lasthop.io
+    groups:
+      - eos
+
+arista4:
+    hostname: arista4.lasthop.io
+    port: 22
+    groups:
+      - eos
+
+!filtering.py
+
+
+from nornir import InitNornir
+from nornir.core.filter import F  # noqa
+
+
+def main():
+    nr = InitNornir(config_file="config.yaml")
+    print(nr)
+    import ipdb
+
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+$ python filtering.py
+--Return--
+None
+> /home/carl/nornir_filtering/filtering.py(7)main()
+      6     nr = InitNornir(config_file="config.yaml")
+----> 7     import ipdb; ipdb.set_trace()
+      8
+
+ipdb> nr.inventory.hosts
+{'cisco3': Host: cisco3, 'cisco4': Host: cisco4, 'nxos1': Host: nxos1, 'nxos2': Host: nxos2, 'arista3': Host: arista3, 'arista4': Host: arista4}
+ipdb> nr.inventory.groups
+{'sea': Group: sea, 'ios': Group: ios, 'nxos': Group: nxos, 'eos': Group: eos}
+ipdb> nr.inventory.hosts['arista3']
+Host: arista3
+ipdb> nr.inventory.hosts['arista3'].hostname
+'arista3.lasthop.io'
+ipdb> arista3 = nr.filter(hostname="arista3")
+ipdb> arista3.inventory.hosts <-- this did not return anything because it should be looking for the fully qualified name not just the key for the hostname
+{}
+ipdb> arista3 = nr.filter(hostname="arista3.lasthop.io")
+ipdb> arista3.inventory.hosts
+{'arista3': Host: arista3}
+ipdb> nr.inventory.hosts['cisco3']
+Host: cisco3
+ipdb> nr.inventory.hosts['cisco3'].platform <-- this did not return anything because this only works if it is found in the hosts file or defaults and will not recurse through the other files. 
+ipdb> nr.inventory.hosts['cisco4'].platform
+'cisco_ios'
+ipdb> cisco = nr.filter(platform="cisco_ios")
+ipdb> cisco.inventory.hosts
+{'cisco4': Host: cisco4}
+ipdb> nr.inventory.hosts['arista3'].port
+ipdb> nr.inventory.hosts['arista4'].port
+22
+ipdb> nr.inventory.groups
+{'sea': Group: sea, 'ios': Group: ios, 'nxos': Group: nxos, 'eos': Group: eos}
+ipdb> eos = nr.filter(platform="arista_eos")
+ipdb> eos.inventory.hosts
+{'arista3': Host: arista3, 'arista4': Host: arista4}
+ipdb> eos = nr.filter(platform="arista_eos").filter(port=22) <-- this will filter so it only matches Arista switches that use SSH so filtering is stackable. 
+ipdb> eos.inventory.hosts
+{'arista4': Host: arista4}
+ipdb> dir(F)
+['__and__', '__call__', '__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__invert__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__or__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_verify_rules']
+ipdb> ios = nr.filter(F(groups__contains="ios"))
+ipdb> ios.inventory.hosts
+{'cisco3': Host: cisco3, 'cisco4': Host: cisco4}
+ipdb> ios_nxos = nr.filter(F(groups__contains="ios") | F(groups__contains="nxos"))
+ipdb> ios_nxos.inventory.hosts <-- This created a union that is a logical or between IOS and NXOS
+{'cisco3': Host: cisco3, 'cisco4': Host: cisco4, 'nxos1': Host: nxos1, 'nxos2': Host: nxos2}
+ipdb> nxos_sea = nr.filter(F(groups__contains="nxos") & F(groups__contains="sea"))
+ipdb> nxos_sea.inventory.hosts <-- This is a logical AND
+{'nxos1': Host: nxos1}
+ipdb> nxos_sea = nr.filter(F(groups__contains="nxos") & ~F(groups__contains="sea"))
+ipdb> nxos_sea.inventory.hosts The ~ acts as a NOT so it will exclude hosts that contain sea in the group. 
+{'nxos2': Host: nxos2}
+ipdb>
+
+!!! ADDITIONAL FILTERING !!!
+
+!hosts.yaml
+
+nxos1:
+    hostname: nxos1.lasthop.io
+    data:
+        role: somerole  <-- Added role to hosts file
+    groups:
+      - nxos
+      - sea
+
+!groups.yaml
+
+---
+sea: {}
+
+ios:
+  connection_options:
+    netmiko:
+      platform: cisco_ios
+
+nxos:
+  data:
+    version: 9.0  <-- Added version to groups file
+
+eos:
+  platform: arista_eos
+
+$ python filtering.py
+--Return--
+None
+> /home/carl/nornir_filtering/filtering.py(7)main()
+      6     nr = InitNornir(config_file="config.yaml")
+----> 7     import ipdb; ipdb.set_trace()
+      8
+
+ipdb> nr.inventory.hosts
+{'cisco3': Host: cisco3, 'cisco4': Host: cisco4, 'nxos1': Host: nxos1, 'nxos2': Host: nxos2, 'arista3': Host: arista3, 'arista4': Host: arista4}
+ipdb> nr.inventory.groups
+{'sea': Group: sea, 'ios': Group: ios, 'nxos': Group: nxos, 'eos': Group: eos}
+ipdb>
+{'sea': Group: sea, 'ios': Group: ios, 'nxos': Group: nxos, 'eos': Group: eos}
+ipdb> nr.inventory.hosts['nxos1'].items() <-- here is the data we specified in groups and hosts.
+dict_items([('role', 'somerole'), ('version', 9.0)])
+ipdb> nr.inventory.hosts['nxos1'].data <-- here is the data at the host level
+{'role': 'somerole'}
+
+ipdb> nr.inventory.hosts['nxos1']['role'] <-- you can access this host level data like a dictionary
+'somerole'
+ipdb> nr.inventory.hosts['nxos1']['version'] <-- you can also access data from the group or default level like a dictionary as well. 
+9.0
+ipdb> nxos_versions = nr.filter(version=9.0)
+ipdb> nxos_versions.inventory.hosts <-- here we have filtered on just nxos devices
+{'nxos1': Host: nxos1, 'nxos2': Host: nxos2}
+ipdb> nxos = nxos_versions.filter(role="somerole") <-- now we have filtered those nxos devices that have a role called somerole because the filters are acumalative
+ipdb> nxos.inventory.hosts
+{'nxos1': Host: nxos1}
+ipdb>
+
+!!! USING TEXTFSM WITH NORNIR !!!
+
+!config.yaml
+
+inventory:
+  plugin: nornir.plugins.inventory.simple.SimpleInventory
+  options:
+    host_file: "~/nornir_inventory/hosts.yaml"
+    group_file: "~/nornir_inventory/groups.yaml"
+    defaults_file: "~/nornir_inventory/defaults.yaml"
+
+logging:
+    file: ""
+
+!test_tfsm.py
+
+from nornir import InitNornir
+from nornir.plugins.tasks.networking import netmiko_send_command
+from nornir.core.filter import F
+from pprint import pprint
+import ipdb
+
+nr = InitNornir(config_file="config.yaml")
+ipdb.set_trace()
+ios = nr.filter(F(groups__contains="ios"))
+results = ios.run(
+    task=netmiko_send_command, command_string="show ip int brief", use_textfsm=True
+)
+
+print()
+pprint(results["cisco3"][0].result)
+print()
+
+!The ntc_templates needs to be in your home directory OR you can set it in an environmental variable
+
+!!! NAPALM GETTERS !!!
+
+
+!getters.py
+
+from nornir import InitNornir
+
+
+def main():
+    nr = InitNornir(config_file="config.yaml")
+    print(nr)
+    import ipdb
+
+    ipdb.set_trace()
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+$ python getters.py
+--Return--
+None
+> /home/carl/nornir_napalm_getters/getters.py(9)main()
+      8     nr = InitNornir(config_file="config.yaml", logging={"enabled": False})
+----> 9     import ipdb; ipdb.set_trace()
+     10
+
+ipdb> nr.inventory.hosts
+{'cisco3': Host: cisco3, 'cisco4': Host: cisco4, 'nxos1': Host: nxos1, 'nxos2': Host: nxos2, 'arista1': Host: arista1, 'arista2': Host: arista2, 'arista3': Host: arista3, 'arista4': Host: arista4, 'srx2': Host: srx2}
+ipdb> nr = nr.filter(name="srx2")
+ipdb> nr.inventory.hosts
+{'srx2': Host: srx2}
+ipdb> results = nr.run(task=napalm_get, getters=["config"]) <-- getter was for config
+ipdb> print_result(results)
+napalm_get**********************************************************************
+* srx2 ** changed : False ******************************************************
+vvvv napalm_get ** changed : False vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv INFO
+{ 'config': { 'candidate': '\n'
+                           '## Last changed: 2019-07-03 12:12:31 PDT\n'
+                           'version 12.1X46-D35.1;\n'
+                           '# Reset configuration back to pynet standard '
+                           'config\n'
+                           'system {\n'
+
+   ------------------- SNIPPIT -------------------
+
+
+!Here we use the retrieve argument to just aquire the running config by adding that key value to retrieve
+
+results = nr.run(task=napalm_get, getters=["config"], retrieve="running")
+
+!In this option we use more than one getter so we have to identify which getter will recieve the retrieve argument of running
+
+results = nr.run(task=napalm_get, getters=["config", "facts"], getters_options={"config": {"retrieve": "running"}})
+
+!! To see if you have a host that failed
+
+nr.data.failed_hosts
+
+!! To recover the failed host
+
+nr.data.recover_host("srx2")
